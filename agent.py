@@ -1,84 +1,42 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-def calculate_risk_score(age, claims, vehicle_value):
-    if age < 21 or age > 70:
-        age_risk = "high"
-    elif age <= 29 or age >= 61:
-        age_risk = "medium"
-    else:
-        age_risk = "low"
-
-    if claims >= 2:
-        claims_risk = "high"
-    elif claims == 1:
-        claims_risk = "medium"
-    else:
-        claims_risk = "low"
-
-    if vehicle_value > 50000:
-        value_risk = "high"
-    elif vehicle_value >= 20000:
-        value_risk = "medium"
-    else:
-        value_risk = "low"
-
-    risks = [age_risk, claims_risk, value_risk]
-    if "high" in risks:
-        overall = "high"
-    elif "medium" in risks:
-        overall = "medium"
-    else:
-        overall = "low"
-
-    return overall
-
-
-def calculate_premium(risk_score, claims, vehicle_value):
-    premium = 500
-
-    if risk_score == "high":
-        premium += 300
-    elif risk_score == "medium":
-        premium += 150
-
-    premium += claims * 150
-
-    if vehicle_value > 50000:
-        premium += vehicle_value * 0.01
-
-    return premium
+from underwriting import calculate_risk_score_v2, calculate_premium_v2
 
 tools = [
     {
         "type": "function",
         "function": {
-            "name": "calculate_risk_score",
-            "description": "Calculates the overall risk level (low, medium, or high) for a motor insurance applicant based on their age, claims history, and vehicle value.",
+            "name": "calculate_risk_score_v2",
+            "description": "Calculates a weighted risk score (0-70) and risk tier (low, medium, high) for a motor insurance applicant based on age, claims history, vehicle value, location, vehicle type, driving experience, and annual mileage.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "age": {"type": "integer", "description": "The applicant's age in years"},
                     "claims": {"type": "integer", "description": "Number of insurance claims in the last 5 years"},
-                    "vehicle_value": {"type": "number", "description": "The market value of the vehicle in dollars"}
+                    "vehicle_value": {"type": "number", "description": "The market value of the vehicle in dollars"},
+                    "location": {"type": "string", "description": "One of: rural, suburban, urban"},
+                    "vehicle_type": {"type": "string", "description": "One of: sedan, hatchback, suv, sports"},
+                    "driving_experience": {"type": "integer", "description": "Years of driving experience"},
+                    "annual_mileage": {"type": "integer", "description": "Estimated annual mileage in km"}
                 },
-                "required": ["age", "claims", "vehicle_value"]
+                "required": ["age", "claims", "vehicle_value", "location", "vehicle_type", "driving_experience", "annual_mileage"]
             }
         }
     },
     {
         "type": "function",
         "function": {
-            "name": "calculate_premium",
-            "description": "Calculates the insurance premium in dollars based on the applicant's risk score, claims history, and vehicle value.",
+            "name": "calculate_premium_v2",
+            "description": "Calculates the insurance premium in dollars based on the applicant's numeric risk score, claims history, and vehicle value.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "risk_score": {"type": "string", "description": "The overall risk level: low, medium, or high"},
+                    "score": {"type": "integer", "description": "The numeric risk score (0-70) returned by calculate_risk_score_v2"},
                     "claims": {"type": "integer", "description": "Number of insurance claims in the last 5 years"},
                     "vehicle_value": {"type": "number", "description": "The market value of the vehicle in dollars"}
                 },
-                "required": ["risk_score", "claims", "vehicle_value"]
+                "required": ["score", "claims", "vehicle_value"]
             }
         }
     }
@@ -89,15 +47,15 @@ import json
 
 client = OpenAI()
 
-applicant_description = "A young driver with a couple of claims wants insurance for their car."
+applicant_description = "The applicant is 25 years old, has had 1 claim in the last 5 years, drives a car worth $30,000, lives in an urban area, drives an SUV, has 4 years of driving experience, and drives about 15,000 km per year."
 
 messages = [
-    {"role": "system", "content": "You are an underwriting assistant. Always calculate the risk score first using calculate_risk_score, and wait for that result before calling calculate_premium. Never guess a risk score — only use the exact result returned by calculate_risk_score."},
-    {"role": "user", "content": f"Evaluate this motor insurance applicant and tell me the risk level and premium: {applicant_description}"}
+    {"role": "system", "content": "You are an underwriting assistant. Always calculate the risk score first using calculate_risk_score_v2, and wait for that result before calling calculate_premium_v2. Use the exact numeric 'score' value returned — never guess or estimate it yourself."},
+    {"role": "user", "content": f"Evaluate this motor insurance applicant and tell me the risk score, risk tier, and premium: {applicant_description}"}
 ]
 available_functions = {
-    "calculate_risk_score": calculate_risk_score,
-    "calculate_premium": calculate_premium
+    "calculate_risk_score_v2": calculate_risk_score_v2,
+    "calculate_premium_v2": calculate_premium_v2
 }
 
 # The agent loop: keep going until the model gives a final text answer
